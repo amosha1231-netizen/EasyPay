@@ -1,0 +1,131 @@
+/* --- GENERAL LAYOUT --- */
+body {
+    background-color: #f4f4f4;
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    padding: 0;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* --- CONTAINERS --- */
+.container {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 400px;
+}
+
+/* --- HEADINGS & TEXT --- */
+h1 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+p {
+    color: #666;
+    font-size: 18px;
+    margin-bottom: 25px;
+}
+
+/* --- BUTTONS --- */
+.main-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    font-size: 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s ease;
+    width: 95%;
+    margin-top: 10px;
+}
+
+.main-btn:hover {
+    background-color: #0056c7;
+}
+
+/* Role selection buttons (Customer / Waiter) */
+.role-btn {
+    width: 90%;
+    padding: 15px;
+    margin: 10px 0;
+    font-size: 20px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    color: white;
+    font-weight: bold;
+    transition: 0.2s ease;
+}
+
+.role-btn.customer {
+    background-color: #007bff;
+}
+
+.role-btn.customer:hover {
+    background-color: #005fcc;
+}
+
+.role-btn.waiter {
+    background-color: #28a745;
+}
+
+.role-btn.waiter:hover {
+    background-color: #1e7e34;
+}
+
+/* --- INPUTS --- */
+.text-input {
+    width: 90%;
+    padding: 12px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+/* --- QR + CHECKMARK --- */
+.amount-box {
+    font-size: 32px;
+    font-weight: bold;
+    background: #e8f0ff;
+    padding: 20px;
+    border-radius: 12px;
+    margin: 20px 0;
+    color: #0056c7;
+}
+
+.checkmark {
+    font-size: 50px;
+    color: #28a745;
+    margin: 20px 0;
+}
+
+/* --- QUICK MENU (button grid) --- */
+.quick-menu {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.quick-menu button {
+    background: #e5e5ff;
+    border: 1px solid #888;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: 0.2s ease;
+}
+
+.quick-menu button:hover {
+    background: #d7d7ff;
+}

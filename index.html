@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasyPay</title>
+</head>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<body>
+
+    <!-- QR Screen -->
+    <div id="screen-qr" class="container" style="display:none;">
+        <h1>Scan to Pay</h1>
+        <p>Scan this QR to view your order:</p>
+        <div id="qrcode"></div>
+        <br>
+        <button class="main-btn" onclick="goHome()">Done</button>
+    </div>
+
+    <!-- Welcome Screen -->
+    <div id="screen-welcome" class="container">
+        <h1>EasyPay</h1>
+        <p>Select your role:</p>
+
+        <button class="role-btn customer" onclick="goToCustomer()">Customer</button>
+        <button class="role-btn waiter" onclick="goToWaiter()">Waiter</button>
+    </div>
+
+    <!-- Enter Name -->
+    <div id="screen-name" class="container" style="display:none;">
+        <h1>Enter Your Name</h1>
+        <input type="text" id="userName" placeholder="Your Name..." class="text-input">
+        <br><br>
+        <button class="main-btn" onclick="submitName()">Continue</button>
+    </div>
+
+    <!-- Thank You -->
+    <div id="screen-thankyou" class="container" style="display:none;">
+        <h1>Thank You!</h1>
+        <p>Your payment has been received.</p>
+        <div class="checkmark">✔</div>
+        <button class="main-btn" onclick="goHome()">Back to Home</button>
+    </div>
+
+    <!-- Waiter: Add Customers -->
+    <div id="screen-waiter" class="container" style="display:none;">
+        <h1>Waiter Mode</h1>
+        <p>Add customers for this table:</p>
+
+        <input type="text" id="newCustomer" class="text-input" placeholder="Enter Name...">
+        <br><br>
+        <button class="main-btn" onclick="addCustomer()">Add Customer</button>
+
+        <ul id="customerList"></ul>
+        <br>
+        <button class="main-btn" onclick="goToOrder()">Next</button>
+    </div>
+
+    <!-- Quick Menu Items -->
+    <div id="screen-quick-items" class="container" style="display:none;">
+        <h1>Menu</h1>
+
+        <div class="quick-menu">
+            <button onclick="addQuickItem('Pizza', 39)">Pizza – 39₪</button>
+            <button onclick="addQuickItem('Shakshuka', 42)">Shakshuka – 42₪</button>
+            <button onclick="addQuickItem('Pasta', 45)">Pasta – 45₪</button>
+            <button onclick="addQuickItem('Hummus', 32)">Hummus – 32₪</button>
+        </div>
+
+        <button class="main-btn" onclick="goHome()">Back</button>
+    </div>
+
+    <!-- Waiter: Orders -->
+    <div id="screen-orders" class="container" style="display:none;">
+        <h1>Add Items</h1>
+        <p>Select a customer and add items:</p>
+
+        <select id="customerSelect" class="text-input"></select>
+        <br><br>
+
+        <input type="text" id="itemName" placeholder="Item Name..." class="text-input">
+        <br><br>
+
+        <input type="number" id="itemPrice" placeholder="Item Price..." class="text-input">
+        <br><br>
+
+        <button class="main-btn" onclick="addItem()">Add Item</button>
+        <ul id="orderList"></ul>
+
+        <br>
+        <button class="main-btn" onclick="finishOrders()">Finish</button>
+    </div>
+
+    <!-- Customer Menu -->
+    <div id="screen-customer-menu" class="container" style="display:none;">
+        <h1>Customer Menu</h1>
+
+        <button class="main-btn" onclick="customerBrowseMenu()">Browse Menu</button>
+        <button class="main-btn" onclick="customerMyOrders()">My Orders</button>
+        <button class="main-btn" onclick="callWaiter()">Call Waiter</button>
+        <button class="main-btn" onclick="goHome()">Back</button>
+    </div>
+
+<script src="app.js"></script>
+
+</body>
+
+</html>
