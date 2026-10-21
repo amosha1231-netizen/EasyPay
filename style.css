@@ -285,3 +285,25 @@ input.invalid { border-color: var(--danger); }
   max-width: calc(100% - 32px);
   text-align: center;
 }
+
+/* ---- Collecting money back ---- */
+.paid-toggle {
+  appearance: none;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.paid-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.paid-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.person-card.paid .person-name, .person-card.paid summary .amount { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.collect { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; font-size: 0.9rem; margin: 12px 0; }
+.collect.done { font-weight: 500; }
+.quick { margin-top: 10px; }
+.quick input { direction: ltr; text-align: right; }

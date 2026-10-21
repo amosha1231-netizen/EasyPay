@@ -97,6 +97,21 @@ function moneyValue(agorot) {
 }
 
 const billTitle = (b) => b.title.trim() || 'חשבון בלי שם';
+
+/** People who still owe the payer, and how many of them already paid back. */
+function collectStatus(bill, r = computeSplit(bill)) {
+  const owing = r.debts;
+  const paid = owing.filter((d) => bill.paid?.[d.from]);
+  const left = owing.filter((d) => !bill.paid?.[d.from]).reduce((a, d) => a + d.amount, 0);
+  return { owing: owing.length, paid: paid.length, left };
+}
+
+function sessionGet(key) {
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function sessionSet(key, value) {
+  try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+}
 const nameOf = (b, id) => b.people.find((p) => p.id === id)?.name || '';
 
 // ---------- Routing ----------
@@ -128,15 +143,17 @@ function renderHome() {
         'ul',
         { class: 'bill-list' },
         bills.map((b) => {
-          const total = computeSplit(b).total;
+          const r = computeSplit(b);
+          const st = collectStatus(b, r);
+          const status = !st.owing ? '' : st.paid === st.owing ? ' · ✓ כולם העבירו' : ` · ${st.paid}/${st.owing} העבירו`;
           return h(
             'li',
             {},
             h(
               'a',
               { class: 'bill-row', href: `#/bill/${b.id}` },
-              h('span', { class: 'bill-row-main' }, h('strong', {}, billTitle(b)), h('small', {}, `${formatDate(b.date)} · ${b.people.length} אנשים`)),
-              h('span', { class: 'amount' }, formatMoney(total))
+              h('span', { class: 'bill-row-main' }, h('strong', {}, billTitle(b)), h('small', {}, `${formatDate(b.date)} · ${b.people.length} אנשים${status}`)),
+              h('span', { class: 'amount' }, formatMoney(r.total))
             ),
             h('button', {
               class: 'icon-btn',
@@ -260,6 +277,17 @@ function renderEdit(bill) {
         bill.people.map((p) => h('option', { value: p.id, selected: p.id === bill.payerId }, p.name))))
   );
 
+  // Equal split: one line for the whole bill, shared by everyone.
+  const quickInput = h('input', { inputmode: 'decimal', placeholder: '₪ סה״כ החשבון', 'aria-label': 'סה״כ החשבון', enterkeyhint: 'done' });
+  const addQuick = () => {
+    const price = parseMoney(quickInput.value);
+    if (!price) return toast('לא הבנתי את הסכום'), quickInput.focus();
+    bill.items.push({ id: uid(), name: 'סה״כ החשבון', price, qty: 1, sharedBy: [] });
+    changed(true);
+  };
+  quickInput.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), addQuick()));
+  const quick = h('div', { class: 'row quick', hidden: true }, quickInput, h('button', { class: 'btn primary', onclick: addQuick }, 'חלוקה'));
+
   // Items
   const items = h('section', { class: 'card' },
     h('div', { class: 'card-head' }, h('h2', {}, 'מה הוזמן?'),
@@ -268,7 +296,7 @@ function renderEdit(bill) {
     h('ol', { class: 'items' }, bill.items.map((it, n) => renderItem(bill, it, n, changed))),
     h('div', { class: 'row wrap' },
       h('button', {
-        class: 'btn primary',
+        class: 'btn primary add-item',
         onclick: () => {
           bill.items.push({ id: uid(), name: '', price: 0, qty: 1, sharedBy: [] });
           changed(true);
@@ -278,16 +306,14 @@ function renderEdit(bill) {
       }, '+ פריט'),
       bill.items.length === 0 && h('button', {
         class: 'btn ghost',
-        onclick: () => {
-          const raw = prompt('כמה יצא החשבון? (יתחלק שווה בשווה)');
-          const price = parseMoney(raw);
-          if (raw == null) return;
-          if (!price) return toast('לא הבנתי את הסכום');
-          bill.items.push({ id: uid(), name: 'סה״כ החשבון', price, qty: 1, sharedBy: [] });
-          changed(true);
+        onclick: (e) => {
+          e.currentTarget.hidden = true;
+          quick.hidden = false;
+          quick.querySelector('input').focus();
         },
       }, 'רק לחלק שווה בשווה')
-    )
+    ),
+    quick
   );
 
   // Tip
@@ -357,6 +383,14 @@ function renderItem(bill, it, n, changed) {
       updateLine();
       changed();
     },
+    enterkeyhint: 'next',
+    onkeydown: (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      // Enter on the last price adds the next line, like typing down a receipt.
+      if (bill.items[bill.items.length - 1] === it) document.querySelector('.add-item')?.click();
+      else e.target.closest('.item').nextElementSibling?.querySelector('.item-name')?.focus();
+    },
   });
 
   return h('li', { class: 'item' },
@@ -364,6 +398,8 @@ function renderItem(bill, it, n, changed) {
       h('input', {
         class: 'item-name', value: it.name, placeholder: `פריט ${n + 1}`, maxlength: 60, 'aria-label': `שם פריט ${n + 1}`,
         oninput: (e) => { it.name = e.target.value; changed(); },
+        enterkeyhint: 'next',
+        onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); priceInput.focus(); } },
       }),
       priceInput,
       h('button', {
@@ -459,6 +495,7 @@ function breakdown(s) {
 function renderSummary(bill) {
   const r = computeSplit(bill);
   const payer = nameOf(bill, bill.payerId);
+  const st = collectStatus(bill, r);
 
   const field = (label, key, profileKey, attrs) =>
     h('label', { class: 'field' }, h('span', {}, label),
@@ -479,15 +516,32 @@ function renderSummary(bill) {
       h('div', { class: 'big-total' }, formatMoney(r.total)),
       h('p', { class: 'muted' }, [`${formatMoney(r.subtotal)} בחשבונית`, r.tip ? ` + ${formatMoney(r.tip)} טיפ` : '', payer ? ` · ${payer} שילם/ה` : ''].join(''))),
     payer === 'אני' && h('p', { class: 'warn' }, 'כדאי לשנות את "אני" לשם שלך בעריכה, כדי שהחברים ידעו למי להעביר.'),
+    st.owing > 0 && h('p', { class: `collect${st.paid === st.owing ? ' done' : ''}` },
+      st.paid === st.owing ? '✓ כולם העבירו. סגרנו!' : `נשאר לקבל ${formatMoney(st.left)} מ-${st.owing - st.paid} ${st.owing - st.paid === 1 ? 'אדם' : 'אנשים'}. מסמנים ✓ כשמישהו מעביר.`),
     r.unassigned.length > 0 && h('p', { class: 'warn' },
       `${r.unassigned.length === 1 ? 'פריט אחד לא סומן' : `${r.unassigned.length} פריטים לא סומנו`}, אז ${r.unassigned.length === 1 ? 'הוא מתחלק' : 'הם מתחלקים'} בין כולם.`),
     h('section', { class: 'people-sum' },
       r.shares.map((s) => {
         const isPayer = s.id === bill.payerId;
-        return h('details', { class: `person-card${isPayer ? ' payer' : ''}` },
+        const owes = !isPayer && s.total > 0 && !!payer;
+        const paid = owes && !!bill.paid?.[s.id];
+        return h('details', { class: `person-card${isPayer ? ' payer' : ''}${paid ? ' paid' : ''}` },
           h('summary', {},
             h('span', { class: 'person-name' }, s.name, isPayer ? h('small', {}, ' שילם/ה') : null),
-            h('span', { class: 'amount' }, formatMoney(s.total))),
+            h('span', { class: 'amount' }, formatMoney(s.total)),
+            owes && h('button', {
+              class: 'paid-toggle', 'aria-pressed': String(paid),
+              'aria-label': paid ? `${s.name} העביר/ה. לחיצה לביטול` : `לסמן ש${s.name} העביר/ה`,
+              title: paid ? 'העביר/ה' : 'לסמן שהעביר/ה',
+              onclick: (e) => {
+                e.preventDefault();
+                bill.paid = { ...bill.paid, [s.id]: !paid };
+                touch(bill);
+                const y = window.scrollY;
+                render();
+                window.scrollTo(0, y);
+              },
+            }, '✓')),
           breakdown(s),
           !isPayer && s.total > 0 && h('div', { class: 'row wrap' },
             h('a', { class: 'btn small whatsapp', href: whatsapp(personMessage(bill, s)), target: '_blank', rel: 'noopener' }, `שליחה ל${s.name} בוואטסאפ`),
@@ -517,7 +571,7 @@ function renderShared(payload) {
   const r = computeSplit(bill);
   const payer = nameOf(bill, bill.payerId);
   const meKey = `easypay.me.${payload.slice(0, 32)}`;
-  let meId = sessionStorage.getItem(meKey);
+  const meId = sessionGet(meKey);
   const me = r.shares.find((s) => s.id === meId);
 
   const pick = h('section', { class: 'card' },
@@ -525,7 +579,7 @@ function renderShared(payload) {
     h('div', { class: 'chips' }, r.shares.map((s) =>
       h('button', {
         class: 'chip toggle', 'aria-pressed': String(s.id === meId),
-        onclick: () => { sessionStorage.setItem(meKey, s.id); render(); },
+        onclick: () => { sessionSet(meKey, s.id); render(); },
       }, s.name))));
 
   const mine = me && h('section', { class: 'card mine' },
@@ -538,7 +592,11 @@ function renderShared(payload) {
           payer && h('p', {}, `מעבירים ל${payer}`),
           bill.payerPhone && h('button', { class: 'btn primary', onclick: () => copy(bill.payerPhone, 'המספר הועתק, אפשר להדביק ב-Bit') }, `העתקת המספר ${bill.payerPhone}`),
           bill.payboxLink && h('a', { class: 'btn ghost', href: bill.payboxLink, target: '_blank', rel: 'noopener noreferrer' }, 'פתיחת PayBox'),
-          h('button', { class: 'btn ghost', onclick: () => copy(String(me.total / 100), 'הסכום הועתק') }, `העתקת הסכום ${formatMoney(me.total)}`)));
+          h('button', { class: 'btn ghost', onclick: () => copy(String(me.total / 100), 'הסכום הועתק') }, `העתקת הסכום ${formatMoney(me.total)}`),
+          payer && h('a', {
+            class: 'btn whatsapp', target: '_blank', rel: 'noopener',
+            href: whatsapp(`היי ${payer}, העברתי לך ${formatMoney(me.total)} על ${billTitle(bill)} 👍`),
+          }, `העברתי! לעדכן את ${payer}`)));
 
   mount(
     h('header', { class: 'summary-head' },
@@ -550,7 +608,7 @@ function renderShared(payload) {
     h('details', { class: 'card' },
       h('summary', {}, 'כל החלוקה'),
       h('ul', { class: 'breakdown' }, r.shares.map((s) => h('li', {}, h('span', {}, s.name), h('span', {}, formatMoney(s.total)))))),
-    h('p', { class: 'hint center' }, 'משהו לא נכון? כתבו ל', payer || 'מי ששילם', ' והוא/היא ישלחו קישור מתוקן.'),
+    h('p', { class: 'hint center' }, 'משהו לא נכון? כתבו ל', payer || 'מי ששילם', ' ובקשו קישור מתוקן.'),
     h('div', { class: 'center' }, h('button', {
       class: 'btn ghost small',
       onclick: () => {
