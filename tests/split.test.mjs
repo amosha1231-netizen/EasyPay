@@ -100,3 +100,15 @@ test('decodeBill rejects garbage', () => {
   assert.throws(() => decodeBill('not-valid'));
   assert.throws(() => decodeBill(Buffer.from('{"v":2}').toString('base64url')));
 });
+
+test('recentNames: newest first, deduped, skips excluded and placeholders', async () => {
+  const { recentNames } = await import('../split.js');
+  const bills = [
+    { updatedAt: 1, people: [{ name: 'אני' }, { name: 'דנה' }, { name: 'רון' }] },
+    { updatedAt: 3, people: [{ name: 'עמוס' }, { name: 'יואב' }, { name: 'דנה ' }] },
+    { updatedAt: 2, people: [{ name: 'בלי שם' }, { name: 'נועה' }] },
+  ];
+  assert.deepEqual(recentNames(bills, ['עמוס']), ['יואב', 'דנה', 'נועה', 'רון']);
+  assert.deepEqual(recentNames(bills, ['עמוס', 'יואב'], 2), ['דנה', 'נועה']);
+  assert.deepEqual(recentNames([], []), []);
+});

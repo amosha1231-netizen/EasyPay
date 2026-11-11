@@ -36,6 +36,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -307,3 +308,22 @@ input.invalid { border-color: var(--danger); }
 .collect.done { font-weight: 500; }
 .quick { margin-top: 10px; }
 .quick input { direction: ltr; text-align: right; }
+
+/* ---- Undo in toast ---- */
+#toast:has(.toast-action) { display: flex; align-items: center; gap: 14px; padding-inline-end: 8px; }
+.toast-action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent-soft);
+  font: inherit;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.toast-action:hover { background: rgba(127, 127, 127, 0.25); }
+
+/* ---- Friends from earlier bills ---- */
+.suggest { margin-top: 10px; align-items: center; }
+.suggest .muted { font-size: 0.85rem; }
