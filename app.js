@@ -1,4 +1,4 @@
-import { parseMoney, formatMoney, lineTotal, computeSplit, encodeBill, decodeBill } from './split.js';
+import { parseMoney, formatMoney, lineTotal, computeSplit, encodeBill, decodeBill, recentNames } from './split.js';
 
 // ---------- Storage (everything stays on this phone) ----------
 
@@ -75,12 +75,26 @@ function h(tag, attrs = {}, ...children) {
 const app = document.getElementById('app');
 const mount = (...nodes) => app.append(...nodes.filter((n) => n instanceof Node));
 let toastTimer;
-function toast(msg) {
+/** Shows a short message. With `undo`, adds a "ביטול" button and stays up longer. */
+function toast(msg, undo) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
+  t.replaceChildren(msg);
+  if (undo) {
+    t.append(h('button', {
+      class: 'toast-action',
+      onclick: () => { t.hidden = true; undo(); },
+    }, 'ביטול'));
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 2200);
+  toastTimer = setTimeout(() => (t.hidden = true), undo ? 6000 : 2200);
+}
+
+/** Re-renders the current screen without jumping to the top. */
+function rerender() {
+  const y = window.scrollY;
+  render();
+  window.scrollTo(0, y);
 }
 
 async function copy(text, okMsg = 'הועתק') {
@@ -126,7 +140,7 @@ function render() {
   const [, route, arg, sub] = hash.split('/');
   window.scrollTo(0, 0);
   app.replaceChildren();
-  if (route === 's' && arg) return renderShared(arg);
+  if (route === 's' && arg) return renderShared(arg, sub);
   const bill = route === 'bill' ? findBill(arg) : null;
   if (bill && sub === 'summary') return renderSummary(bill);
   if (bill) return renderEdit(bill);
@@ -160,10 +174,15 @@ function renderHome() {
               'aria-label': `מחיקת ${billTitle(b)}`,
               title: 'מחיקה',
               onclick: () => {
-                if (!confirm(`למחוק את "${billTitle(b)}"?`)) return;
+                const at = bills.indexOf(b);
                 bills = bills.filter((x) => x.id !== b.id);
                 saveBills();
-                render();
+                rerender();
+                toast(`"${billTitle(b)}" נמחק`, () => {
+                  bills.splice(at, 0, b);
+                  saveBills();
+                  rerender();
+                });
               },
             }, '✕')
           );
@@ -221,13 +240,10 @@ function renderEdit(bill) {
     footerTotal.textContent = formatMoney(r.total);
     footerNote.textContent = r.tip ? `כולל טיפ ${formatMoney(r.tip)}` : `${bill.items.length} פריטים`;
   };
-  const changed = (rerender = false) => {
+  const changed = (full = false) => {
     touch(bill);
-    if (rerender) {
-      const y = window.scrollY;
-      render();
-      window.scrollTo(0, y);
-    } else updateFooter();
+    if (full) rerender();
+    else updateFooter();
   };
 
   // People
@@ -240,6 +256,7 @@ function renderEdit(bill) {
     document.querySelector('#person-input')?.focus();
   };
   personInput.id = 'person-input';
+  const suggestions = recentNames(bills.filter((b) => b !== bill), [...bill.people.map((p) => p.name), profile.name]);
   personInput.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), addPerson()));
 
   const people = h('section', { class: 'card' },
@@ -271,7 +288,14 @@ function renderEdit(bill) {
       )
     ),
     h('div', { class: 'row' }, personInput, h('button', { class: 'btn', onclick: addPerson }, 'הוספה')),
-    h('p', { class: 'hint' }, 'אפשר להדביק כמה שמות עם פסיקים: דנה, יואב, נועה'),
+    suggestions.length > 0
+      ? h('div', { class: 'chips small suggest' },
+          h('span', { class: 'muted' }, 'מהפעמים הקודמות:'),
+          suggestions.map((name) => h('button', {
+            class: 'chip toggle', 'aria-label': `הוספת ${name}`,
+            onclick: () => { bill.people.push({ id: uid(), name }); changed(true); },
+          }, '+ ', name)))
+      : h('p', { class: 'hint' }, 'אפשר להדביק כמה שמות עם פסיקים: דנה, יואב, נועה'),
     h('label', { class: 'field inline' }, h('span', {}, 'מי שילם?'),
       h('select', { onchange: (e) => { bill.payerId = e.target.value; changed(); } },
         bill.people.map((p) => h('option', { value: p.id, selected: p.id === bill.payerId }, p.name))))
@@ -404,7 +428,12 @@ function renderItem(bill, it, n, changed) {
       priceInput,
       h('button', {
         class: 'icon-btn', 'aria-label': 'מחיקת פריט', title: 'מחיקה',
-        onclick: () => { bill.items = bill.items.filter((x) => x !== it); changed(true); },
+        onclick: () => {
+          const at = bill.items.indexOf(it);
+          bill.items = bill.items.filter((x) => x !== it);
+          changed(true);
+          toast(`${it.name.trim() || 'הפריט'} נמחק`, () => { bill.items.splice(at, 0, it); changed(true); });
+        },
       }, '✕')
     ),
     h('div', { class: 'row item-meta' },
@@ -433,8 +462,10 @@ function renderItem(bill, it, n, changed) {
 
 // ---------- Summary ----------
 
-function shareUrl(bill) {
-  return `${location.origin}${location.pathname}#/s/${encodeBill(bill)}`;
+/** Link to the bill for friends. With a person, it opens straight on that person's share. */
+function shareUrl(bill, personId) {
+  const n = bill.people.findIndex((p) => p.id === personId);
+  return `${location.origin}${location.pathname}#/s/${encodeBill(bill)}${n >= 0 ? `/${n}` : ''}`;
 }
 
 function payLine(bill) {
@@ -469,6 +500,23 @@ function personMessage(bill, s) {
   if (payer) lines.push('', `להעביר ל${payer}`);
   const pl = payLine(bill);
   if (pl) lines.push(pl);
+  lines.push('', `החלק שלך: ${shareUrl(bill, s.id)}`);
+  return lines.join('\n');
+}
+
+/** Gentle reminder for the group, listing only who still owes. */
+function reminderMessage(bill, r) {
+  const payer = nameOf(bill, bill.payerId);
+  const left = r.debts.filter((d) => !bill.paid?.[d.from]);
+  const lines = [
+    `⏰ תזכורת קטנה על ${billTitle(bill)}`,
+    ...left.map((d) => `${nameOf(bill, d.from)}: ${formatMoney(d.amount)}`),
+    '',
+    `להעביר ל${payer}${bill.payerPhone || bill.payboxLink ? ':' : ''}`,
+  ];
+  const pl = payLine(bill);
+  if (pl) lines.push(pl);
+  lines.push('', `פירוט: ${shareUrl(bill)}`, 'תודה! 🙏');
   return lines.join('\n');
 }
 
@@ -537,9 +585,7 @@ function renderSummary(bill) {
                 e.preventDefault();
                 bill.paid = { ...bill.paid, [s.id]: !paid };
                 touch(bill);
-                const y = window.scrollY;
-                render();
-                window.scrollTo(0, y);
+                rerender();
               },
             }, '✓')),
           breakdown(s),
@@ -554,13 +600,15 @@ function renderSummary(bill) {
       field('קישור PayBox (לא חובה)', 'payboxLink', 'paybox', { type: 'url', inputmode: 'url', placeholder: 'https://...' })),
     h('footer', { class: 'sticky stack' },
       h('button', { class: 'btn primary big', onclick: () => shareText(groupMessage(bill, r)) }, 'שיתוף לקבוצה'),
+      st.paid > 0 && st.paid < st.owing && h('button', { class: 'btn whatsapp', onclick: () => shareText(reminderMessage(bill, r)) },
+        `תזכורת ל-${st.owing - st.paid} שעוד לא העבירו`),
       h('button', { class: 'btn ghost', onclick: () => copy(shareUrl(bill), 'הקישור הועתק') }, 'העתקת קישור לפירוט'))
   );
 }
 
 // ---------- Shared link (what friends see) ----------
 
-function renderShared(payload) {
+function renderShared(payload, personIndex) {
   let bill;
   try {
     bill = decodeBill(payload);
@@ -571,7 +619,9 @@ function renderShared(payload) {
   const r = computeSplit(bill);
   const payer = nameOf(bill, bill.payerId);
   const meKey = `easypay.me.${payload.slice(0, 32)}`;
-  const meId = sessionGet(meKey);
+  // A personal link (#/s/<bill>/<n>) picks the person, unless they already chose someone else here.
+  const linked = /^\d+$/.test(personIndex || '') ? `p${personIndex}` : null;
+  const meId = sessionGet(meKey) || linked;
   const me = r.shares.find((s) => s.id === meId);
 
   const pick = h('section', { class: 'card' },

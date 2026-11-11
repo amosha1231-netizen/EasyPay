@@ -150,3 +150,24 @@ export function decodeBill(payload) {
     payboxLink: /^https:\/\//.test(pb) ? pb : '',
   };
 }
+
+/**
+ * Names of friends from earlier bills, most recent first, for one-tap adding.
+ * Skips names in `exclude` (already in the bill, or the user's own name) and placeholders.
+ */
+export function recentNames(bills, exclude = [], limit = 8) {
+  const norm = (s) => String(s || '').trim().toLocaleLowerCase();
+  const seen = new Set([...exclude, 'אני', 'בלי שם', ''].map(norm));
+  const out = [];
+  const sorted = [...(bills || [])].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  for (const b of sorted) {
+    for (const p of b.people || []) {
+      const key = norm(p.name);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(String(p.name).trim());
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
